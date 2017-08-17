@@ -1,0 +1,49 @@
+subject,exp_group,comfort,run_into,navigate,vision_useful
+1,color,AR,cane ,AR,AR
+2,control,AR,AR,AR,AR
+3,control,cane,cane ,cane,impaired
+4,control,cane,cane ,cane,impaired
+5,opacity,cane,cane ,AR,AR
+6,control,AR,cane ,AR,AR
+7,opacity,AR,AR,cane,AR
+8,opacity,cane,cane ,cane,AR
+9,color,cane,cane ,impaired,cane
+10,opacity,AR,AR,AR,AR
+11,color,AR,AR,AR,AR
+12,color,cane,cane ,cane,AR
+13,opacity,cane,cane ,cane,AR
+14,color,cane,cane ,cane,impaired
+15,color,AR,AR,AR,AR
+16,control,cane,cane ,AR,AR
+17,control,cane,cane ,cane,AR
+18,color,cane,cane ,cane,AR
+19,control,impaired,cane ,cane,impaired
+20,opacity,cane,cane ,cane,AR
+21,opacity,cane,cane ,cane,AR
+22,color,AR,cane ,AR,AR
+23,opacity,AR,AR,AR,AR
+24,control,cane,cane ,impaired,cane
+25,control,AR,AR,AR,AR
+26,opacity,AR,AR,AR,AR
+27,color,cane,AR,cane,AR
+28,control,cane,cane ,cane,cane
+29,control,AR,AR,AR,AR
+30,color,cane,cane ,cane,AR
+31,opacity,cane,cane ,AR,AR
+32,color,cane,cane ,cane,AR
+33,opacity,cane,cane ,cane,cane
+34,color,cane,cane ,cane,AR
+35,opacity,cane,cane ,cane,impaired
+36,control,cane,cane ,cane,AR
+37,color,cane,cane ,cane,AR
+38,control,AR,cane ,AR,AR
+39,opacity,AR,cane ,cane,AR
+40,color,cane,cane ,impaired,impaired
+41,opacity,cane,cane ,AR,AR
+42,control,cane,cane ,cane,cane
+43,color,AR,AR,AR,AR
+44,opacity,cane,cane ,cane,cane
+45,control,cane,cane ,cane,AR
+46,color,AR,AR,AR,AR
+47,opacity,cane,cane ,cane,impaired
+48,control,AR,cane ,AR,AR
