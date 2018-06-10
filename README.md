@@ -1,6 +1,10 @@
 # HoloLensDistanceARData
 
-This repository contains the data and analysis scripts for Experiment 1.
+This repository contains the data and analysis scripts for the two perceptual experiments reported in
+
+Using an Augmented Reality Device as a Distance-Based Vision Aid – Promise and Limitations.
+M. Kinateder, J. Gualtieri, M.J. Dunn, W. Jarosz, X. Yang and E.A. Cooper
+Optometry & Vision Science
 
 
 ## 1. Data files
