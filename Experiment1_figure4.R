@@ -1,15 +1,23 @@
-## Analysis for Experiment 1 Visual Identification Tasks - Creates Figure 4 and ANOVA 
-## output for Kinateder et al 'Using an Augmented Reality Device to Improve Functional 
-## Vision in Blindness - Promises and Limitations'
-## Written 2017 by Max Kinateder
+## Analysis for Experiment 1 Visual Identification Tasks - Creates Figure 4 and
+#  stats output for Kinateder et al 'Using an Augmented Reality Device to
+#  Improve Functional Vision in Blindness - Promise and Limitations'
+#  Written 2017 by Max Kinateder
 
 
-# Instructions: 
-# This code assumes that the data are contained in a subfolder of the source file called "Data" and should run as 
+## Instructions: 
+# This code assumes that the data are contained in a subfolder of 
+# the source file called 'Data' and should run as 
 # is when you source it. 
+# A note on print(); this is only needed if you source the script; if you 
+# run the code line by line it is not necessary
+
+# Note that this code requires a few packages. The lines below will install them
+# if they are missing. 
 
 # packages needed to run this code
-necessary.packages = c('ez', 'schoRsch', 'ggplot2', 'scales', 'gridExtra')
+necessary.packages = c('dplyr', 'reshape2', 'tidyr', 
+                       'BaylorEdPsych', 'effsize', 'schoRsch', 
+                       'ggplot2', 'scales', 'gridExtra')
 # find out which packages are missing
 new.packages        = necessary.packages[!(necessary.packages %in% installed.packages()[,'Package'])]
 
@@ -19,14 +27,16 @@ if(length(new.packages)) install.packages(new.packages)
 # clear workspace
 rm(list=ls(all=TRUE)) 
 
-
 # load libraries
-library(dplyr)    # for data wrangling
+library(dplyr)    # for filtering
+library(reshape2) # for data wrangling and clean up
+library(tidyr)    # for data wrangling and clean up
+library(BaylorEdPsych) # to return partial eta squared
+library(effsize)  # to return effect sizes (like cohens d)
 library(ggplot2)  # for plotting
 library(scales)   # to adjust scales in ggplot
-library(gridExtra)# for multipane plotting
-library(ez)       # for ANOVAs
-library(schoRsch) # return ez output in APA style
+library(gridExtra)# for multipanel plots
+library(schoRsch) # to return stats in APA format
 
 # set working directory to source file location (this works only if you source the script
 # not when you run it line by line; alternatively you can set your wd manually)
@@ -34,286 +44,176 @@ source.dir = dirname(parent.frame(2)$ofile)
 setwd(source.dir)
 
 # load data
-dat = read.csv2("Data/Experiment1_visual_identification_tasks.csv", sep = ',', dec = '.')
-dat = dplyr::select(dat, -objects_guess) # remove columns we don't need (specific object response)
+dat = read.csv2('Data/Experiment1.csv', sep = ',', dec = '.')
 
 # make sure that all data are the correct type
-dat$subject            = as.character(dat$subject)
-dat$exp_group          = factor(dat$exp_group, 
-                                levels = c("control", "color", "opacity")) # sort exp_group levels for plotting so that control is first
-dat$pose_score         = as.numeric(dat$pose_score)
-dat$objects_score      = as.numeric(dat$objects_score)
-dat$gesture_score      = as.numeric(dat$gesture_score)
-dat$pose_confidence    = as.numeric(dat$pose_confidence)
-dat$objects_confidence = as.numeric(dat$objects_confidence)
-dat$gesture_confidence = as.numeric(dat$gesture_confidence)
+dat$subject                 = as.character(dat$subject)
+dat$person_score            = as.numeric(dat$person_score) 
+dat$pose_score              = as.numeric(dat$pose_score) 
+dat$objects_score           = as.numeric(dat$objects_score) 
+dat$person_confidence       = as.numeric(dat$person_confidence) 
+dat$pose_confidence         = as.numeric(dat$pose_confidence) 
+dat$objects_confidence      = as.numeric(dat$objects_confidence) 
+dat$distance_from_obstacle  = as.numeric(dat$distance_from_obstacle)
 
+# add column with trial numbers to data frame
+dat$trial = rep(1:5, 8)
 
 # show & count number of rows with missing values (see manuscript for details)
 print(paste('Number of incomplete cases: ', nrow(dat[!complete.cases(dat),])))
 
+# select data needed for plotting and ANOVAs
+dat = dplyr::select(dat, subject, trial, AR_on_off, distance_from_obstacle, person_score, person_confidence, pose_score, pose_confidence, objects_score, objects_confidence)
 
-#################################
-#                               #
-#  Plot visual id tasks         #
-#   A) performance (p1:p3)      #
-#   B) confidence  (p4:p6)      #
-#                               #
-#################################
+########################
+#
+#    Plot figure 4
+#    A) accuracy (p1:p3)
+#    B) confidence (p4:p6)
+#    C) Distanc from obstacle (p7)
+#
+#########################
 
-p1 = ggplot(dat, aes(x = exp_group, y = pose_score, fill = trial_type))+
-  stat_summary(fun.y="mean", 
-               geom="bar", 
-               position = 'dodge', 
-               color = 'black')+
-  stat_summary(fun.data = mean_se, 
-               geom = "errorbar", 
-               position = position_dodge(width = 0.90), 
-               width = 0.4)+
-  annotate(geom = 'text', 
-           x = 0.5, y = 0.9, 
-           label = "bold(A)", 
-           parse = T)+
-  scale_y_continuous(labels = scales::percent,limits = c(0, 1), 
-                     expand = c(0, 0))+
-  labs(x = '', y = "Percent correct", fill = "AR", title = "Pose recognition")+
-  theme(legend.direction = 'horizontal', 
-        legend.position = c(.9,0.8), 
-        legend.justification = c(1, 0))
+# plot accuracy
+p1 = ggplot(dat,  aes(x = subject, y = person_score, fill = AR_on_off))+ 
+  stat_summary(fun.y='mean', geom='bar', position = 'dodge', color = 'black') + 
+  guides(fill=FALSE)+
+  labs(y = 'Percent correct', title = 'Person localization: accuracy')
 
+p2 = ggplot(dat,    aes(x = subject, y = pose_score, fill = AR_on_off))+ 
+  stat_summary(fun.y='mean', geom='bar', position = 'dodge', color = 'black')+ 
+  guides(fill=FALSE)+
+  labs(y = 'Percent correct', title = 'Pose recognition: accuracy')
 
-p2 = ggplot(dat, aes(x = exp_group, y = objects_score, fill = trial_type))+
-  stat_summary(fun.y="mean", 
-               geom="bar", 
-               position = 'dodge', 
-               color = 'black')+
-  stat_summary(fun.data = mean_se, 
-               geom = "errorbar", 
-               position = position_dodge(width = 0.90), 
-               width = 0.4)+
-  annotate(geom = 'text', 
-           x = 0.5, y = 0.9, 
-           label = "bold(B)", 
-           parse = T)+
-  scale_y_continuous(labels = scales::percent,limits = c(0, 1), 
-                     expand = c(0, 0))+      
-  labs(x = '', y = "Percent correct", fill = "AR", title = "Object recognition")+
-  guides(fill=FALSE)
+p3 = ggplot(dat, aes(x = subject, y = objects_score, fill = AR_on_off))+ 
+  stat_summary(fun.y='mean', geom='bar', position = 'dodge', color = 'black')+
+  guides(fill=FALSE)+
+  labs(y = 'Percent correct', title = 'Objects recognition: accuracy')
 
+# plot confidence (note that this has errorbars)
+p4 = ggplot(dat, aes(x = subject, y = person_confidence, fill = AR_on_off))+  
+  stat_summary(fun.y='mean', geom='bar', position = 'dodge', color = 'black')+
+  stat_summary(fun.data = mean_se, geom = 'errorbar', 
+               position = position_dodge(width = 0.90), width = 0.4) + 
+  scale_y_continuous(limits=c(0.9,3.1), # set axis so that y starts at 1 (lowest possibl confidence score)
+                   oob = rescale_none, 
+                   expand = c(0, 0))+
+  guides(fill=FALSE)+
+  labs(y = 'Confidence [1:3]', title = 'Person localization: confidence')
 
-p3 = ggplot(dat, aes(x = exp_group, y = gesture_score, fill = trial_type))+
-  stat_summary(fun.y="mean", 
-               geom="bar", 
-               position = 'dodge', 
-               color = 'black')+
-  stat_summary(fun.data = mean_se, 
-               geom = "errorbar", 
-               position = position_dodge(width = 0.90), 
-               width = 0.4)+
-  annotate(geom = 'text', 
-           x = 0.5, y = 0.9, 
-           label = "bold(C)", 
-           parse = T)+
-  scale_y_continuous(labels = scales::percent,limits = c(0, 1), 
-                     expand = c(0, 0))+
-  labs(x = '', y = "Percent correct", fill = "AR", title = "Gesture recognition")+
-  guides(fill=FALSE)
+p5 = ggplot(dat, aes(x = subject, y = pose_confidence, fill = AR_on_off))+ 
+  stat_summary(fun.y='mean', geom='bar', position = 'dodge', color = 'black')+
+  stat_summary(fun.data = mean_se, geom = 'errorbar', 
+               position = position_dodge(width = 0.90), width = 0.4)+
+  scale_y_continuous(limits=c(0.9,3.1),
+                   oob = rescale_none, 
+                   expand = c(0, 0))+
+  guides(fill=FALSE)+
+  labs(y = 'Confidence [1:3]', title = 'Pose recognition: confidence')
 
+p6 = ggplot(dat, aes(x = subject, y = objects_confidence, fill = AR_on_off))+  stat_summary(fun.y='mean', geom='bar', position = 'dodge', color = 'black')+
+  stat_summary(fun.data = mean_se, geom = 'errorbar', 
+               position = position_dodge(width = 0.90), width = 0.4)+ 
+  scale_y_continuous(limits=c(0.9,3.1),
+                   oob = rescale_none, 
+                   expand = c(0, 0))+
+  guides(fill=FALSE)+
+  labs(y = 'Confidence [1:3]', title = 'Objects recognition: confidence')
 
-p4 = ggplot(dat, aes(x = exp_group, y = pose_confidence, fill = trial_type))+
-  stat_summary(fun.y="mean", 
-               geom="bar", 
-               position = 'dodge', 
-               color = 'black')+
-  stat_summary(fun.data = mean_se, 
-               geom = "errorbar", 
-               position = position_dodge(width = 0.90), 
-               width = 0.4)+
-  annotate(geom = 'text', 
-           x = 0.5, y = 2.9, 
-           label = "bold(D)", 
-           parse = T)+
-  scale_y_continuous(limits=c(1,3),
-                     oob = rescale_none, 
-                     expand = c(0, 0))+      labs(x = '', y = "Confidence [1:3]", fill = "Overlay", title = '')+
-  guides(fill=FALSE)
+# plot distance from obstacle
+p7 = ggplot(dat, aes(x = subject, y = distance_from_obstacle, fill = AR_on_off))+ 
+  stat_summary(fun.y='mean', geom='bar', position = 'dodge', color = 'black')+ 
+  stat_summary(fun.data = mean_se, geom = 'errorbar', 
+             position = position_dodge(width = 0.90), width = 0.4)+ 
+  labs(y = 'Distance from obstacle [m]', title = 'Distance from obstacle')
 
-
-p5 = ggplot(dat, aes(x = exp_group, y = objects_confidence, fill = trial_type))+
-  stat_summary(fun.y="mean", 
-               geom="bar", 
-               position = 'dodge', 
-               color = 'black')+
-  stat_summary(fun.data = mean_se, 
-               geom = "errorbar", 
-               position = position_dodge(width = 0.90), 
-               width = 0.4)+
-  annotate(geom = 'text', 
-           x = 0.5, y = 2.9, 
-           label = "bold(E)", 
-           parse = T)+
-  scale_y_continuous(limits=c(1,3),
-                     oob = rescale_none, 
-                     expand = c(0, 0))+
-  labs(x = '', y = "Confidence [1:3]", fill = "Overlay", title = '')+
-  guides(fill=FALSE)
-
-
-p6 = ggplot(dat, aes(x = exp_group, y = gesture_confidence, fill = trial_type))+
-  stat_summary(fun.y="mean", 
-               geom="bar", 
-               position = 'dodge', 
-               color = 'black')+
-  stat_summary(fun.data = mean_se, 
-               geom = "errorbar", 
-               position = position_dodge(width = 0.90), 
-               width = 0.4)+
-  annotate(geom = 'text', 
-           x = 0.5, y = 2.9, 
-           label = "bold(F)", 
-           parse = T)+
-  scale_y_continuous(limits=c(1,3),
-                     oob = rescale_none, 
-                     expand = c(0, 0))+      
-  labs(x = '', y = "Confidence [1:3]", fill = "Overlay", title = ' ')+
-  guides(fill=FALSE)
 
 # make a Figure from all the subplots (needs gridExtra package)
-Figure4 = grid.arrange(p1,p2,p3,p4,p5,p6, ncol=3, nrow =2)
+Figure4 = grid.arrange(p1,p4,p2,p5,p3,p6,p7, ncol=2, nrow =4)
 
-# save figure 4
+
+# save figure 7 (note that this will a fairly big image)
 ggsave(filename = 'Plots/Figure4.png', plot = Figure4, device = NULL, path = NULL,
-        scale = 1, width = 7, height = NA, units = "in",
+        scale = 1, width = 7, height = 21, units = 'in',
         dpi = 300, limitsize = TRUE)
 
-
-#########################
-#                       #
-# ANOVAS - performance  #
-#                       #
-#########################
-
-# remove 1 missing value for analysis (see manuscript for details)
-dat_na_removed = as.data.frame(na.omit(dat))
-
-
-# pose recognition
-pose_anova = ezANOVA(data = dat_na_removed, 
-                     dv = pose_score, 
-                     wid = subject, 
-                     between = exp_group,
-                     within = trial_type,
-                     detailed = T,
-                     return_aov = T)
-
-# return the result in APA style (requires schoRsch)
-print('POSE RECOGNITION ACCURACY')
-anova_out(pose_anova)
-
-# objects
-object_anova = ezANOVA(data = dat_na_removed, 
-                       dv = objects_score, 
-                       wid = subject, 
-                       between = exp_group,
-                       within = trial_type,
-                       detailed = T,
-                       return_aov = T)
-
-print('OBJECT RECOGNITION ACCURACY')
-anova_out(object_anova)
-
-# gestures
-gesture_anova = ezANOVA(data = dat_na_removed, 
-                        dv = gesture_score, 
-                        wid = subject, 
-                        between = exp_group,
-                        within = trial_type,
-                        detailed = T,
-                        return_aov = T)
-
-print('GESTURE RECOGNITION ACCURACY')
-anova_out(gesture_anova)
-
-# post hoc comparisons (paired t tests)
-
-# create new data sets for each experimental group
-dat.col = filter(dat, exp_group == 'color')
-dat.lum = filter(dat, exp_group == 'opacity')
-dat.con = filter(dat, exp_group == 'control')
-
-# objects
-t_con_o = t.test(dat.con$objects_score[dat.con$trial_type == 'on'],dat.con$objects_score[dat.con$trial_type == 'off'], paired = T)
-t_col_o = t.test(dat.col$objects_score[dat.col$trial_type == 'on'],dat.col$objects_score[dat.col$trial_type == 'off'], paired = T)
-t_lum_o = t.test(dat.lum$objects_score[dat.lum$trial_type == 'on'],dat.lum$objects_score[dat.lum$trial_type == 'off'], paired = T)
-t_out(t_con_o)
-t_out(t_col_o)
-t_out(t_lum_o)
-
-# gestures
-t_col_g = t.test(dat.col$gesture_score[dat.col$trial_type == 'on'],dat.col$gesture_score[dat.col$trial_type == 'off'], paired = T)
-t_lum_g = t.test(dat.lum$gesture_score[dat.lum$trial_type == 'on'],dat.lum$gesture_score[dat.lum$trial_type == 'off'], paired = T)
-t_con_g = t.test(dat.con$gesture_score[dat.con$trial_type == 'on'],dat.con$gesture_score[dat.con$trial_type == 'off'], paired = T)
-t_out(t_con_g)
-t_out(t_col_g)
-t_out(t_lum_g)
-
-#######################
+########################
 #
-# CONFIDENCE 
+#    ANOVAs and posthoc tests
 #
-######################
+#########################
+
+# clean up workspace a little
+rm(list=setdiff(ls(), 'dat')) # removes all objects but 'dat' from workspace
 
 
-# ANOVAS confidence
-# poses
-pose_anova = ezANOVA(data = dat_na_removed, 
-                     dv = pose_confidence, 
-                     wid = subject, 
-                     between = exp_group,
-                     within = trial_type,
-                     detailed = T,
-                     return_aov = T)
+# person_score.aov = aov(person_score ~ subject * AR_on_off, data = dat) # run anova
+# print(summary(person_score.aov), quote = F)  # return anova results
+# print(EtaSq(person_score.aov), quote = F)    # return effect size measures (needs BaylorEdPsych package)
 
-print('POSE RECOGNITION CONFIDENCE')
-anova_out(pose_anova)
+# pairwise comparison between AR on and baseline 
+ 
+# aggregate data over trials
+dat_agg = aggregate(dat, by = list(dat$subject, dat$AR_on_off), FUN = mean, na.rm = T)
+dat_agg = select(dat_agg, -subject, -AR_on_off)
 
-# objects
-object_anova = ezANOVA(data = dat_na_removed, 
-                       dv = objects_confidence, 
-                       wid = subject, 
-                       between = exp_group,
-                       within = trial_type,
-                       detailed = T,
-                       return_aov = T)
+colnames(dat_agg)[1] = "subject"
+colnames(dat_agg)[2] = "AR_on_off"
 
-print('OBJECT RECOGNITION CONFIDENCE')
-anova_out(object_anova)
+# FIGURE POINTING: Accuracy
+print('################### PERSON LOCALIZATION TASK: Accuracy #################', quote = F)
+acc.test = t.test(dat_agg$person_score[dat_agg$AR_on_off == 'on'], 
+                  dat_agg$person_score[dat_agg$AR_on_off == 'off'],
+                  paired = T, alternative = 'greater')
+t_out(acc.test)
 
-# gestures
-gesture_anova = ezANOVA(data = dat_na_removed, 
-                        dv = gesture_confidence, 
-                        wid = subject, 
-                        between = exp_group,
-                        within = trial_type,
-                        detailed = T,
-                        return_aov = T)
+# FIGURE POINTING: confidence
+print('################### PERSON LOCALIZATION TASK: Confidence #################', quote = F)
+conf.test = t.test(dat_agg$person_confidence[dat_agg$AR_on_off == 'on'], 
+                   dat_agg$person_confidence[dat_agg$AR_on_off == 'off'], 
+                   paired = T, alternative = 'greater')
+t_out(conf.test, d.corr = F)
 
-print('GESTURE RECOGNITION CONFIDENCE')
-anova_out(gesture_anova)
 
-# post hoc comparisons: objects
-t_col_o = t.test(dat.col$objects_confidence[dat.col$trial_type == 'on'],dat.col$objects_confidence[dat.col$trial_type == 'off'], paired = T)
-t_lum_o = t.test(dat.lum$objects_confidence[dat.lum$trial_type == 'on'],dat.lum$objects_confidence[dat.lum$trial_type == 'off'], paired = T)
-t_con_o = t.test(dat.con$objects_confidence[dat.con$trial_type == 'on'],dat.con$objects_confidence[dat.con$trial_type == 'off'], paired = T)
-t_out(t_con_o)
-t_out(t_col_o)
-t_out(t_lum_o)
+# POSE RECOGNITION: Accuracy
+print('################### POSE RECOGNITION TASK: Accuracy #################', quote = F)
+acc.test = t.test(dat_agg$pose_score[dat_agg$AR_on_off == 'on'], 
+                  dat_agg$pose_score[dat_agg$AR_on_off == 'off'], 
+                  paired = T, alternative = 'greater')
+t_out(acc.test)
 
-# post hoc comparisons: gestures
-t_col_g = t.test(dat.col$gesture_confidence[dat.col$trial_type == 'on'],dat.col$gesture_confidence[dat.col$trial_type == 'off'], paired = T)
-t_lum_g =t.test(dat.lum$gesture_confidence[dat.lum$trial_type == 'on'],dat.lum$gesture_confidence[dat.lum$trial_type == 'off'], paired = T)
-t_con_g =t.test(dat.con$gesture_confidence[dat.con$trial_type == 'on'],dat.con$gesture_confidence[dat.con$trial_type == 'off'], paired = T)
-t_out(t_con_g)
-t_out(t_col_g)
-t_out(t_lum_g)
+# POSE RECOGNITION: Confidence
+print('################### POSE RECOGNITION TASK: Confidence #################')
+conf.test = t.test(dat_agg$pose_confidence[dat_agg$AR_on_off == 'on'], 
+                   dat_agg$pose_confidence[dat_agg$AR_on_off == 'off'], 
+                   paired = T, alternative = 'greater')
 
+t_out(conf.test, d.corr = F)
+
+
+# Object recognition task: accuracy
+print('################### Object RECOGNITION TASK: accuracy #################', quote = F)
+acc.test = t.test(dat_agg$objects_score[dat_agg$AR_on_off == 'on'], 
+                  dat_agg$objects_score[dat_agg$AR_on_off == 'off'], 
+                  paired = T, alternative = 'greater')
+t_out(acc.test)
+
+
+# Object recognition task: confidence
+print('################### Object RECOGNITION TASK: confidence #################', quote = F)
+conf.test = t.test(dat_agg$objects_confidence[dat_agg$AR_on_off == 'on'], 
+                   dat_agg$objects_confidence[dat_agg$AR_on_off == 'off'], 
+                   paired = T, alternative = 'greater')
+t_out(conf.test, d.corr = F)
+
+
+# Obstacle distance
+print('################### Obstacle distance #################', quote = F)
+dist.test = t.test(dat_agg$distance_from_obstacle[dat_agg$AR_on_off == 'on'], 
+                   dat_agg$distance_from_obstacle[dat_agg$AR_on_off == 'off'], 
+                   paired = T, alternative = 'greater')
+t_out(dist.test, d.corr = F)
+
+
+# clean up workspace a little
+#rm(list=setdiff(ls(), 'dat')) # removes all objects but 'dat' from workspace

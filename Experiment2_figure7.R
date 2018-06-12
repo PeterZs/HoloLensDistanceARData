@@ -1,4 +1,4 @@
-## Analysis for Experiment 2 Visual Identification Tasks - Creates Figure 7 and
+## Analysis for Experiment 2 mobility - Creates Figure 7 and
 #  stats output for Kinateder et al 'Using an Augmented Reality Device to
 #  Improve Functional Vision in Blindness - Promise and Limitations'
 #  Written 2017 by Max Kinateder
@@ -15,9 +15,9 @@
 # if they are missing. 
 
 # packages needed to run this code
-necessary.packages = c('dplyr', 'reshape2', 'tidyr', 
-                       'BaylorEdPsych', 'effsize', 'schoRsch' 
-                       'ggplot2', 'scales', 'gridExtra')
+necessary.packages = c('reshape2', 'ggplot2', 'dplyr', 
+                       'tidyr', 'Rmisc', 'gridExtra',
+                       'ez', 'schoRsch', 'scales')
 # find out which packages are missing
 new.packages        = necessary.packages[!(necessary.packages %in% installed.packages()[,'Package'])]
 
@@ -28,177 +28,170 @@ if(length(new.packages)) install.packages(new.packages)
 rm(list=ls(all=TRUE)) 
 
 # load libraries
-library(dplyr)    # for filtering
-library(reshape2) # for data wrangling and clean up
-library(tidyr)    # for data wrangling and clean up
-library(BaylorEdPsych) # to return partial eta squared
-library(effsize)  # to return effect sizes (like cohens d)
-library(ggplot2)  # for plotting
-library(scales)   # to adjust scales in ggplot
-library(gridExtra)# for multipanel plots
+library(reshape2)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(Rmisc)
+library(ez)
 library(schoRsch)
+library(scales)
+library(gridExtra)
 
-# set working directory to source file location (this works only if you source('Experiment2_plots_and_analysis.R') the script
+# set working directory to source file location (this works only if you source the script
 # not when you run it line by line; alternatively you can set your wd manually)
 source.dir = dirname(parent.frame(2)$ofile)
 setwd(source.dir)
 
 # load data
-dat = read.csv2('Data/Experiment2.csv', sep = ',', dec = '.')
-
-# make sure that all data are the correct type
-dat$subject                 = as.character(dat$subject)
-dat$person_score            = as.numeric(dat$person_score) 
-dat$pose_score              = as.numeric(dat$pose_score) 
-dat$objects_score           = as.numeric(dat$objects_score) 
-dat$person_confidence       = as.numeric(dat$person_confidence) 
-dat$pose_confidence         = as.numeric(dat$pose_confidence) 
-dat$objects_confidence      = as.numeric(dat$objects_confidence) 
-dat$distance_from_obstacle  = as.numeric(dat$distance_from_obstacle)
-
-# add column with trial numbers to data frame
-dat$trial = rep(1:5, 8)
+dat = read.csv2('Data/Experiment2_mobility_task_likert_ratings.csv', sep = ',', dec = '.')
 
 # show & count number of rows with missing values (see manuscript for details)
 print(paste('Number of incomplete cases: ', nrow(dat[!complete.cases(dat),])))
 
-# select data needed for plotting and ANOVAs
-dat = dplyr::select(dat, subject, trial, AR_on_off, distance_from_obstacle, person_score, person_confidence, pose_score, pose_confidence, objects_score, objects_confidence)
+# combine color and opacity group into 'test' category
+dat$exp_group_new = ifelse(dat$exp_group == 'color', 'test',
+                    ifelse(dat$exp_group == 'luminance', 'test', 'control'))
 
-########################
-#
-#    Plot figure 7
-#    A) accuracy (p1:p3)
-#    B) confidence (p4:p6)
-#    C) Distanc from obstacle (p7)
-#
-#########################
+dat$exp_group_new = factor(dat$exp_group_new, levels = c('control', 'test'))
 
-# plot accuracy
-p1 = ggplot(dat,  aes(x = subject, y = person_score, fill = AR_on_off))+ 
-  stat_summary(fun.y='mean', geom='bar', position = 'dodge', color = 'black') + 
-  guides(fill=FALSE)+
-  labs(y = 'Percent correct', title = 'Person localization: accuracy')
 
-p2 = ggplot(dat,    aes(x = subject, y = pose_score, fill = AR_on_off))+ 
-  stat_summary(fun.y='mean', geom='bar', position = 'dodge', color = 'black')+ 
-  guides(fill=FALSE)+
-  labs(y = 'Percent correct', title = 'Pose recognition: accuracy')
+# Prepare plotting: create a new data frame for each of the 4 questions 
+# select relevant variables and create data frames
+dat.run_into = select(dat, -exp_group, -comfort, -navigate, -vision)
+dat.comfort  = select(dat, -exp_group, -run_into, -navigate, -vision)
+dat.navigate = select(dat, -exp_group, -comfort, -run_into, -vision)
+dat.vision   = select(dat, -exp_group, -comfort, -navigate, -run_into)
 
-p3 = ggplot(dat, aes(x = subject, y = objects_score, fill = AR_on_off))+ 
-  stat_summary(fun.y='mean', geom='bar', position = 'dodge', color = 'black')+
-  guides(fill=FALSE)+
-  labs(y = 'Percent correct', title = 'Objects recognition: accuracy')
+# transform to wide format
+wide.run_into = spread(data = dat.run_into, key = trial_type, value = run_into)
+wide.comfort  = spread(data = dat.comfort,  key = trial_type, value = comfort)
+wide.navigate = spread(data = dat.navigate, key = trial_type, value = navigate)
+wide.vision   = spread(data = dat.vision,   key = trial_type, value = vision)
 
-# plot confidence (note that this has errorbars)
-p4 = ggplot(dat, aes(x = subject, y = person_confidence, fill = AR_on_off))+  
-  stat_summary(fun.y='mean', geom='bar', position = 'dodge', color = 'black')+
-  stat_summary(fun.data = mean_se, geom = 'errorbar', 
-               position = position_dodge(width = 0.90), width = 0.4) + 
-  scale_y_continuous(limits=c(0.9,3.1), # set axis so that y starts at 1 (lowest possibl confidence score)
-                   oob = rescale_none, 
-                   expand = c(0, 0))+
-  guides(fill=FALSE)+
-  labs(y = 'Confidence [1:3]', title = 'Person localization: confidence')
+# calculate difference between baseline and cane/AR scores
+wide.run_into$diff.cane = wide.run_into$cane - wide.run_into$baseline
+wide.run_into$diff.AR   = wide.run_into$AR   - wide.run_into$baseline
+wide.comfort$diff.cane  = wide.comfort$cane - wide.comfort$baseline
+wide.comfort$diff.AR    = wide.comfort$AR   - wide.comfort$baseline
+wide.navigate$diff.cane = wide.navigate$cane - wide.navigate$baseline
+wide.navigate$diff.AR   = wide.navigate$AR   - wide.navigate$baseline
+wide.vision$diff.cane   = wide.vision$cane - wide.vision$baseline
+wide.vision$diff.AR     = wide.vision$AR   - wide.vision$baseline
 
-p5 = ggplot(dat, aes(x = subject, y = pose_confidence, fill = AR_on_off))+ 
+# remove unnecessary variables from data frame
+wide.run_into = select(wide.run_into, -baseline, -cane, -AR)
+wide.comfort  = select(wide.comfort, -baseline, -cane, -AR)
+wide.navigate = select(wide.navigate, -baseline, -cane, -AR)
+wide.vision   = select(wide.vision, -baseline, -cane, -AR)
+
+# go back to long format for plotting
+dat.run_into = wide.run_into %>% gather(diff_type, diff.score, diff.cane:diff.AR)
+dat.comfort  = wide.comfort %>% gather(diff_type, diff.score, diff.cane:diff.AR)
+dat.navigate = wide.navigate %>% gather(diff_type, diff.score, diff.cane:diff.AR)
+dat.vision   = wide.vision %>% gather(diff_type, diff.score, diff.cane:diff.AR)
+
+# clean up workspace a little
+rm(list=setdiff(ls(), c('dat','dat.run_into','dat.comfort', 'dat.navigate', 'dat.vision'))) # removes all objects but 'dat' from workspace
+
+
+#################################
+#                               
+#  Plot mobility tasks          
+#   p1: reduced collision risk
+#   p2: usefulness of vision
+#   p3: comfort while exploring
+#   p4: Ease of navigation
+#                               
+#################################
+
+p1 = ggplot(dat.run_into, aes(exp_group_new, diff.score, fill = diff_type))+
   stat_summary(fun.y='mean', geom='bar', position = 'dodge', color = 'black')+
   stat_summary(fun.data = mean_se, geom = 'errorbar', 
                position = position_dodge(width = 0.90), width = 0.4)+
-  scale_y_continuous(limits=c(0.9,3.1),
-                   oob = rescale_none, 
-                   expand = c(0, 0))+
-  guides(fill=FALSE)+
-  labs(y = 'Confidence [1:3]', title = 'Pose recognition: confidence')
+  labs(x = '', y = 'Difference to \nbaseline [-6:6]', fill = '', title = 'Reduced collision risk')+
+  scale_y_continuous(limits=c(-1,3), oob = rescale_none, expand = c(0, 0))+
+  theme(legend.position = c(0.3, 0.85), legend.direction = 'horizontal', legend.title = element_blank(), legend.background = element_blank())
 
-p6 = ggplot(dat, aes(x = subject, y = objects_confidence, fill = AR_on_off))+  stat_summary(fun.y='mean', geom='bar', position = 'dodge', color = 'black')+
+
+p2 = ggplot(dat.vision, aes(exp_group_new, diff.score, fill = diff_type))+
+  stat_summary(fun.y='mean', geom='bar', position = 'dodge', color = 'black')+
   stat_summary(fun.data = mean_se, geom = 'errorbar', 
-               position = position_dodge(width = 0.90), width = 0.4)+ 
-  scale_y_continuous(limits=c(0.9,3.1),
-                   oob = rescale_none, 
-                   expand = c(0, 0))+
-  guides(fill=FALSE)+
-  labs(y = 'Confidence [1:3]', title = 'Objects recognition: confidence')
+               position = position_dodge(width = 0.90), width = 0.4)+ guides(fill=FALSE)+
+  labs(x = '', y = 'Difference to \nbaseline [-6:6]', fill = '', title = 'Usefulness of vision')+
+  scale_y_continuous(limits=c(-1,3), oob = rescale_none, expand = c(0, 0))
 
-# plot distance from obstacle
-p7 = ggplot(dat, aes(x = subject, y = distance_from_obstacle, fill = AR_on_off))+ 
-  stat_summary(fun.y='mean', geom='bar', position = 'dodge', color = 'black')+ 
+p3 = ggplot(dat.comfort, aes(exp_group_new, diff.score, fill = diff_type))+
+  stat_summary(fun.y='mean', geom='bar', position = 'dodge', color = 'black')+
   stat_summary(fun.data = mean_se, geom = 'errorbar', 
-             position = position_dodge(width = 0.90), width = 0.4)+ 
-  labs(y = 'Distance from obstacle [m]', title = 'Distance from obstacle')
+               position = position_dodge(width = 0.90), width = 0.4)+ guides(fill=FALSE)+
+  labs(x = '', y = 'Difference to \nbaseline [-6:6]', fill = '', title = 'Comfort while exploring')+
+  scale_y_continuous(limits=c(-1,3), oob = rescale_none, expand = c(0, 0))
+
+p4 = ggplot(dat.navigate, aes(exp_group_new, diff.score, fill = diff_type))+
+  stat_summary(fun.y='mean', geom='bar', position = 'dodge', color = 'black')+
+  stat_summary(fun.data = mean_se, geom = 'errorbar', 
+               position = position_dodge(width = 0.90), width = 0.4)+ guides(fill=FALSE)+
+  labs(x = '', y = 'Difference to \nbaseline [-6:6]', fill = '', title = 'Ease of navigation')+
+  scale_y_continuous(limits=c(-1,3), oob = rescale_none, expand = c(0, 0))
 
 
-# make a Figure from all the subplots (needs gridExtra package)
-Figure7 = grid.arrange(p1,p4,p2,p5,p3,p6,p7, ncol=2, nrow =4)
+# make a big plot from all the subplots
+Figure7 = grid.arrange(p1, p2, p3, p4, ncol=2, nrow =2)
 
 
-# save figure 7 (note that this will a fairly big image)
+# save figure 7
 ggsave(filename = 'Plots/Figure7.png', plot = Figure7, device = NULL, path = NULL,
-        scale = 1, width = 7, height = 21, units = 'in',
-        dpi = 300, limitsize = TRUE)
-
-########################
-#
-#    ANOVAs and posthoc tests
-#
-#########################
-
-# clean up workspace a little
-rm(list=setdiff(ls(), 'dat')) # removes all objects but 'dat' from workspace
+       scale = 1, width = 7, height = NA, units = 'in',
+       dpi = 300, limitsize = TRUE)
 
 
-# FIGURE POINTING: accuracy
-print('################### PERSON LOCALIZATION TASK: accuracy #################', quote = F)
-# person_score.aov = aov(person_score ~ subject * AR_on_off, data = dat) # run anova
-# print(summary(person_score.aov), quote = F)  # return anova results
-# print(EtaSq(person_score.aov), quote = F)    # return effect size measures (needs BaylorEdPsych package)
+# ANOVAs
 
-# pairwise comparison between AR on and baseline
-acc.test = t.test(dat$person_score[dat$AR_on_off == 'off'], 
-                   dat$person_score[dat$AR_on_off == 'on'],
-                  paired = T)
-t_out(acc.test)
-
-# FIGURE POINTING: confidence
-print('################### PERSON LOCALIZATION TASK: Confidence #################', quote = F)
-conf.test = t.test(dat$person_confidence[dat$AR_on_off == 'off'], 
-             dat$person_confidence[dat$AR_on_off == 'on'], paired = T)
-t_out(conf.test, d.corr = F)
+# Reduced collision risk
+print('############ REDUCED COLLISION RISK: anova output')
+run_into_anova = ezANOVA(data = dat, 
+                         dv = run_into, 
+                         wid = subject, 
+                         between = exp_group_new,
+                         within = trial_type,
+                         type = 2,
+                         detailed = T,
+                         return_aov = T)
+print(anova_out(run_into_anova))
 
 
-# POSE RECOGNITION: Accuracy
-print('################### POSE RECOGNITION TASK: Accuracy #################', quote = F)
-acc.test = t.test(dat$pose_score[dat$AR_on_off == 'off'], 
-                  dat$pose_score[dat$AR_on_off == 'on'], paired = T)
-t_out(acc.test)
+# t t-test against 0 for difference scores
+t.diff.ri.cane.con    = t.test(dat.run_into$diff.score[dat.run_into$diff_type == 'diff.cane' & dat.run_into$exp_group_new == 'control'])
+t.diff.ri.overlay.con = t.test(dat.run_into$diff.score[dat.run_into$diff_type == 'diff.AR' & dat.run_into$exp_group_new == 'control'])
+t.diff.ri.cane.aug    = t.test(dat.run_into$diff.score[dat.run_into$diff_type == 'diff.cane' & dat.run_into$exp_group_new == 'test'])
+t.diff.ri.overlay.aug = t.test(dat.run_into$diff.score[dat.run_into$diff_type == 'diff.AR' & dat.run_into$exp_group_new == 'test'])
+print(t.diff.ri.cane.con)
+print(t.diff.ri.overlay.con)
+print(t.diff.ri.cane.aug)
+print(t.diff.ri.overlay.aug)
 
-# POSE RECOGNITION: Confidence
-print('################### POSE RECOGNITION TASK: Confidence #################')
-conf.test = t.test(dat$pose_confidence[dat$AR_on_off == 'off'], 
-                   dat$pose_confidence[dat$AR_on_off == 'on'], paired = T)
-t_out(conf.test, d.corr = F)
+# Usefulness of vision
+print('############ USEFULNESS OF VISION: anova output')
+vision_anova = ezANOVA(data = dat, 
+                       dv = vision, 
+                       wid = subject, 
+                       between = exp_group_new,
+                       within = trial_type,
+                       type = 2,
+                       detailed = T,
+                       return_aov = T)
 
+print(anova_out(vision_anova))
 
-# Object recognition task: accuracy
-print('################### Object RECOGNITION TASK: accuracy #################', quote = F)
-acc.test = t.test(dat$objects_score[dat$AR_on_off == 'off'], 
-                  dat$objects_score[dat$AR_on_off == 'on'], paired = T)
-t_out(acc.test)
+# t t-test against 0 for difference scores
+t.diff.vis.cane.con    = t.test(dat.vision$diff.score[dat.vision$diff_type == 'diff.cane' & dat.vision$exp_group_new == 'control'])
+t.diff.vis.overlay.con = t.test(dat.vision$diff.score[dat.vision$diff_type == 'diff.AR' & dat.vision$exp_group_new == 'control'])
+t.diff.vis.cane.aug    = t.test(dat.vision$diff.score[dat.vision$diff_type == 'diff.cane' & dat.vision$exp_group_new == 'test'])
+t.diff.vis.overlay.aug = t.test(dat.vision$diff.score[dat.vision$diff_type == 'diff.AR' & dat.vision$exp_group_new == 'test'])
 
+print(t.diff.vis.cane.con)
+print(t.diff.vis.overlay.con)
+print(t.diff.vis.cane.aug)
+print(t.diff.vis.overlay.aug)
 
-# Object recognition task: confidence
-print('################### Object RECOGNITION TASK: confidence #################', quote = F)
-conf.test = t.test(dat$objects_confidence[dat$AR_on_off == 'off'], 
-                   dat$objects_confidence[dat$AR_on_off == 'on'], paired = T)
-t_out(conf.test, d.corr = F)
-
-
-# Obstacle distance
-print('################### Obstacle distance #################', quote = F)
-dist.test = t.test(dat$distance_from_obstacle[dat$AR_on_off == 'off'], 
-                   dat$distance_from_obstacle[dat$AR_on_off == 'on'], paired = T)
-t_out(dist.test, d.corr = F)
-
-
-# clean up workspace a little
-rm(list=setdiff(ls(), 'dat')) # removes all objects but 'dat' from workspace
